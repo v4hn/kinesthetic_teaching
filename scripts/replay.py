@@ -20,13 +20,13 @@ def main():
     csv_file = sys.argv[1]
     with open(csv_file, 'r') as file:
         reader = csv.reader(file)
-        cols = reader.next()
+        cols = next(reader)
         time_col = 0
-        pos_cols = range(1, len(cols)/2+1)
-        vel_cols = range(len(cols)/2+1, len(cols)+1)
+        pos_cols = range(1, (len(cols)-1)//2 + 1)
+        vel_cols = range((len(cols)-1)//2+1, len(cols)-1)
 
         trajectory = JointTrajectory()
-        trajectory.joint_names = [col[0:-len("_pos")] for col in cols[pos_cols]]
+        trajectory.joint_names = [col[0:-len("_pos")] for col in cols[1:int(len(cols)/2)+1]]
 
         for row in reader:
             point = JointTrajectoryPoint()

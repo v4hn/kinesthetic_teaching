@@ -33,20 +33,22 @@ class TrajectoryRecorder:
         self.subscriber = rospy.Subscriber('/joint_states', JointState, self.joint_states_callback, queue_size=5, tcp_nodelay=True)
 
     def moving(self):
-        return any([abs(v) > self.motion_threshold for v in self.joint_velocities.values()])
+        moving_joints = {j:v for j,v in self.joint_velocities.items() if abs(v) > self.motion_threshold}
+        return moving_joints
 
     def joint_states_callback(self, msg):
         now = msg.header.stamp
-        with self.mutex():
-            for name, position, velocity in zip(msg.name, msg.position, msg.velocity):
+        with self.mutex:
+            for name, position, velocity in [tup for tup in zip(msg.name, msg.position, msg.velocity) if tup[0] in self.joint_names]:
                 self.joint_positions[name] = position
                 self.joint_velocities[name] = velocity
             self.last_update = now
 
-        if self.moving():
+        moving_joints= self.moving()
+        if len(moving_joints) > 0:
             self.last_time_moving = now
             if not self.recording:
-                rospy.loginfo('Recording trajectory...')
+                rospy.loginfo(f'Detected motion: {moving_joints}. Recording trajectory...')
                 self.recorded_trajectory.joint_names = self.joint_names
                 self.recorded_trajectory.header.stamp = now
                 self.recording = True
@@ -54,14 +56,14 @@ class TrajectoryRecorder:
 
         if self.recording:
             if now - self.last_time_moving >= self.threshold_stopped_time:
-                with self.mutex():
+                with self.mutex:
                     self.recording = False
                     self.save()
 
     def record(self):
         while not rospy.is_shutdown():
             if self.recording:
-                with self.mutex():
+                with self.mutex:
                     msg = JointTrajectoryPoint()
                     msg.positions = [self.joint_positions[joint_name] for joint_name in self.joint_names]
                     msg.velocities = [self.joint_velocities[joint_name] for joint_name in self.joint_names]
