@@ -3,7 +3,7 @@
 import rospy
 import moveit_commander
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from std_msgs.msg import Header
+from std_msgs.msg import Header, String as StringMsg
 from sensor_msgs.msg import JointState
 import datetime
 import csv
@@ -22,7 +22,7 @@ class TrajectoryRecorder:
 
         self.rate = rospy.Rate(50)
         self.threshold_stopped_time = rospy.Duration(1.5)
-        self.motion_threshold = rospy.get_param('~motion_threshold', 0.01)
+        self.motion_threshold = rospy.get_param('~motion_threshold', 0.2)
 
         self.mutex = Lock()
         self.recorded_trajectory = JointTrajectory()
@@ -30,7 +30,9 @@ class TrajectoryRecorder:
         self.last_time_moving = rospy.Time()
         self.last_update = rospy.Time()
 
-        self.subscriber = rospy.Subscriber('/joint_states', JointState, self.joint_states_callback, queue_size=5, tcp_nodelay=True)
+        self.state_pub = rospy.Publisher('say', StringMsg, queue_size= 5, tcp_nodelay=True, latch= True)
+
+        self.subscriber = rospy.Subscriber('joint_states', JointState, self.joint_states_callback, queue_size=5, tcp_nodelay=True)
 
     def moving(self):
         moving_joints = {j:v for j,v in self.joint_velocities.items() if abs(v) > self.motion_threshold}
@@ -49,25 +51,32 @@ class TrajectoryRecorder:
             self.last_time_moving = now
             if not self.recording:
                 rospy.loginfo(f'Detected motion: {moving_joints}. Recording trajectory...')
+                self.state_pub.publish("I'm moving")
                 self.recorded_trajectory.joint_names = self.joint_names
-                self.recorded_trajectory.header.stamp = now
                 self.recording = True
                 self.last_time_moving = now
 
         if self.recording:
             if now - self.last_time_moving >= self.threshold_stopped_time:
+                self.state_pub.publish("stop")
                 with self.mutex:
+                    self.recorded_trajectory.points = self.recorded_trajectory.points[0:-(int(self.threshold_stopped_time/self.rate.sleep_dur)-2)]
                     self.recording = False
                     self.save()
 
     def record(self):
+        rospy.loginfo('Recorder is ready to record')
+        self.state_pub.publish("I'm here.")
         while not rospy.is_shutdown():
             if self.recording:
                 with self.mutex:
+                    now = rospy.Time.now() 
+                    if len(self.recorded_trajectory.points) == 0:
+                        self.recorded_trajectory.header.stamp = now
                     msg = JointTrajectoryPoint()
                     msg.positions = [self.joint_positions[joint_name] for joint_name in self.joint_names]
                     msg.velocities = [self.joint_velocities[joint_name] for joint_name in self.joint_names]
-                    msg.time_from_start = rospy.Time.now() - self.recorded_trajectory.header.stamp
+                    msg.time_from_start = now - self.recorded_trajectory.header.stamp
                     self.recorded_trajectory.points.append(msg)
 
             self.rate.sleep()

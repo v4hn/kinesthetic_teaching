@@ -4,7 +4,8 @@ import math
 import rospy
 import moveit_commander
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-import csv
+from moveit_msgs.msg import RobotTrajectory
+import pandas
 import sys
 
 def main():
@@ -18,22 +19,17 @@ def main():
     group = moveit_commander.MoveGroupCommander(group_name)
 
     csv_file = sys.argv[1]
-    with open(csv_file, 'r') as file:
-        reader = csv.reader(file)
-        cols = next(reader)
-        time_col = 0
-        pos_cols = range(1, (len(cols)-1)//2 + 1)
-        vel_cols = range((len(cols)-1)//2+1, len(cols)-1)
+    df = pandas.read_csv(open(csv_file, 'r'))
+    trajectory = JointTrajectory()
+    trajectory.joint_names = [v[:-len('_pos')] for v in df.columns.values if v.endswith('_pos')]
 
-        trajectory = JointTrajectory()
-        trajectory.joint_names = [col[0:-len("_pos")] for col in cols[1:int(len(cols)/2)+1]]
-
-        for row in reader:
-            point = JointTrajectoryPoint()
-            point.time_from_start = rospy.Duration.from_sec(float(row[time_col]))
-            point.positions = [float(row[col]) for col in pos_cols]
-            point.velocities = [float(row[col]) for col in vel_cols]
-            trajectory.points.append(point)
+    for _, row in df[df.index%2==0].iterrows():
+        point = JointTrajectoryPoint()
+        point.time_from_start = rospy.Duration.from_sec(float(row["time_from_start"]))
+        point.positions = row.filter(regex='_pos$').to_list()
+        point.velocities = row.filter(regex='_vel$').to_list()
+        point.accelerations = row.filter(regex='_acc_nd$').to_list()
+        trajectory.points.append(point)
 
     rospy.sleep(1)
 
@@ -49,7 +45,7 @@ def main():
 
     print('Executing trajectory...')
 
-    group.execute(trajectory)
+    group.execute(RobotTrajectory(joint_trajectory= trajectory))
 
     print('Trajectory execution completed.')
 
