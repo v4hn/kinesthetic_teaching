@@ -28,7 +28,7 @@ def main():
         point.time_from_start = rospy.Duration.from_sec(float(row["time_from_start"]))
         point.positions = row.filter(regex='_pos$').to_list()
         point.velocities = row.filter(regex='_vel$').to_list()
-        point.accelerations = row.filter(regex='_acc_nd$').to_list()
+        point.accelerations = row.filter(regex='_acc$').to_list()
         trajectory.points.append(point)
 
     rospy.sleep(1)
