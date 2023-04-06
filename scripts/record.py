@@ -30,6 +30,8 @@ class TrajectoryRecorder:
         self.last_time_moving = rospy.Time()
         self.last_update = rospy.Time()
 
+        # TODO: optionally trigger teach/mannequin mode and disable again on shutdown
+
         self.state_pub = rospy.Publisher('say', StringMsg, queue_size= 5, tcp_nodelay=True, latch= True)
 
         self.subscriber = rospy.Subscriber('joint_states', JointState, self.joint_states_callback, queue_size=5, tcp_nodelay=True)
@@ -46,20 +48,18 @@ class TrajectoryRecorder:
                 self.joint_velocities[name] = velocity
             self.last_update = now
 
-        moving_joints= self.moving()
-        if len(moving_joints) > 0:
-            self.last_time_moving = now
-            if not self.recording:
-                rospy.loginfo(f'Detected motion: {moving_joints}. Recording trajectory...')
-                self.state_pub.publish("I'm moving")
-                self.recorded_trajectory.joint_names = self.joint_names
-                self.recording = True
+            moving_joints= self.moving()
+            if len(moving_joints) > 0:
                 self.last_time_moving = now
+                if not self.recording:
+                    rospy.loginfo(f'Detected motion: {moving_joints}. Recording trajectory...')
+                    self.state_pub.publish("I'm moving")
+                    self.recorded_trajectory.joint_names = self.joint_names
+                    self.recording = True
+                    self.last_time_moving = now
 
-        if self.recording:
-            if now - self.last_time_moving >= self.threshold_stopped_time:
-                self.state_pub.publish("stop")
-                with self.mutex:
+            if self.recording and (now - self.last_time_moving) >= self.threshold_stopped_time:
+                    self.state_pub.publish("stop")
                     self.recorded_trajectory.points = self.recorded_trajectory.points[0:-(int(self.threshold_stopped_time/self.rate.sleep_dur)-2)]
                     self.recording = False
                     self.save()
