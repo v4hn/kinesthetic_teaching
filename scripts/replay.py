@@ -5,7 +5,7 @@ import moveit_commander
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from moveit_msgs.msg import RobotTrajectory
 
-from recording import Recorder
+from kinesthetic_teaching.recording import Recorder
 
 from multiprocessing import Lock
 import pandas as pd
