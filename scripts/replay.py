@@ -22,7 +22,7 @@ def trajectory_from_csv(filename):
     ]
 
     # build trajectory from csv
-    for _, row in df[df.index % 2 == 0].iterrows():
+    for _, row in df.iterrows():
         point = JointTrajectoryPoint()
         point.time_from_start = rospy.Duration.from_sec(float(row["time_from_start"]))
         point.positions = row.filter(regex="_pos$").to_list()
@@ -89,6 +89,8 @@ def main():
     # todo iterate execution, store recorded trajectories as pickle
     traces = []
     for i in range(repetitions):
+        if repetitions > 1:
+            rospy.loginfo(f'executing {i} out of {repetitions} times')
         replay.execute(trajectory)
         traces.append(replay.trace)
 

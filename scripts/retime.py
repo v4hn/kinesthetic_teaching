@@ -25,7 +25,8 @@ def main():
     trajectory = JointTrajectory()
     trajectory.joint_names = [v[:-len('_pos')] for v in df.columns.values if v.endswith('_pos')]
 
-    for _, row in df.iterrows():
+    rospy.loginfo("skipping every 2nd point")
+    for _, row in df[df.index % 2 == 0].iterrows():
         point = JointTrajectoryPoint()
         point.time_from_start = rospy.Duration.from_sec(float(row["time_from_start"]))
         point.positions = row.filter(regex='_pos$').to_list()
@@ -46,7 +47,6 @@ def main():
     output_filename = os.path.splitext(csv_file)[0] + '_retimed.csv'
     df2.to_csv(output_filename, index=False)
 
-    
 
 if __name__ == '__main__':
     main()
